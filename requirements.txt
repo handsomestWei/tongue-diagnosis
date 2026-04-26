@@ -1,0 +1,6 @@
+# 安装可编辑包： pip install -e .
+# 或仅依赖： pip install -r requirements.txt
+numpy>=1.23
+opencv-python-headless>=4.8
+ultralytics>=8.0.0
+torch

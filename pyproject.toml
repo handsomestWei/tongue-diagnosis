@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tongue-diagnosis"
+version = "0.1.0"
+description = "舌象相关：ROI 裁剪、YOLOv8 分类训推、仅分类图+SAM 的预处理等"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23",
+  "opencv-python-headless>=4.8",
+  "ultralytics>=8.0.0",
+  "torch",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+td-roi = "tongue_diag.roi.cli:main"
+td-train-cls = "tongue_diag.classify.train:main"
+td-predict-cls = "tongue_diag.classify.predict:main"
+td-prepare-dataset = "tongue_diag.dataset.prepare:main"
+td-prep-sam-cls = "tongue_diag.pipelines.sam_class_folders:main"
+td-collect-labelme = "tongue_diag.dataset.collect_labelme_flat:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tongue_diag*"]

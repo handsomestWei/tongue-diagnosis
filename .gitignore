@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+runs/
+*.pt
+!LICENSE
+.coverage
+htmlcov/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
