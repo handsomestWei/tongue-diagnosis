@@ -8,6 +8,11 @@
 !/tongue_sam/data/**/
 !/tongue_sam/data/**/.gitkeep
 
+.DS_Store
+
+# TongueSAM 等预训练权重（常 >100MB，勿提交；自行下载至该目录，见 tongue_sam/README.md）
+tongue_sam/pretrained_model/*.pth
+
 __pycache__/
 *.py[cod]
 .venv/
