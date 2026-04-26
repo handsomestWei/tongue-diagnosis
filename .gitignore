@@ -3,6 +3,11 @@
 !/dataset/
 !/dataset/README.md
 
+# TongueSAM 运行时的输入/中间/输出，不提交；仅保留子目录与 .gitkeep
+/tongue_sam/data/**
+!/tongue_sam/data/**/
+!/tongue_sam/data/**/.gitkeep
+
 __pycache__/
 *.py[cod]
 .venv/
