@@ -17,7 +17,8 @@
 
 ### 与 LabelMe → YOLO 脚本
 
-- **`labelme_yolo/`**：原 `rooneysh-Labelme2YOLO` 相关脚本（如 `labelme2yolo.py`、`prepare_classify_dataset.py` 等），与 `td-prepare-dataset`、文档 `7542e转YOLOv8-使用说明.md` 的用法保持一致，仅路径变为本目录。
+- **`labelme_yolo/`**：原 `rooneysh-Labelme2YOLO` 相关脚本（如 `labelme2yolo.py`、`collect_labelme_class_folders_to_flat.py`、`prepare_classify_dataset.py` 等），与 `td-prepare-dataset`、文档 `labelme_yolo/7542e转YOLOv8-使用说明.md` 的用法保持一致。
+- **`dataset/`**：本机存放下载/解压后的数据（**大文件默认不提交 Git**），说明与数据链接见 [`dataset/README.md`](dataset/README.md)。
 
 ## 仓库布局（根目录模块）
 
@@ -25,7 +26,8 @@
 |------|------|
 | `tongue_diag/` | 可安装主包：ROI、分类、数据集准备、SAM 整图→分类流水线等。 |
 | `tongue_sam/` | TongueSAM 推理/训练与 `segment_anything` 等，权重放在 `tongue_sam/pretrained_model/`。 |
-| `labelme_yolo/` | LabelMe 与 YOLO 格式转换、7542e 等辅助脚本。 |
+| `labelme_yolo/` | LabelMe 与 YOLO 格式转换、辅助脚本（如整库说明 `7542e转YOLOv8-使用说明.md`）。 |
+| `dataset/` | 本地数据根目录，约定与资源链接见 `dataset/README.md`。 |
 
 ## 主包子模块（`tongue_diag`）
 
