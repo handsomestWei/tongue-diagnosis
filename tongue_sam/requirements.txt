@@ -1,0 +1,15 @@
+# Recommended Python: 3.10 or 3.11
+# If you use GPU, install torch/torchvision first from PyTorch official index-url.
+
+numpy
+pillow
+matplotlib
+scikit-image
+opencv-python
+tqdm
+scikit-learn
+scipy
+pandas
+monai
+torch
+torchvision

@@ -1,0 +1,15 @@
+# Recommended Python: 3.10 or 3.11
+# CPU-only dependencies
+
+numpy
+pillow
+matplotlib
+scikit-image
+opencv-python
+tqdm
+scikit-learn
+scipy
+pandas
+monai
+torch
+torchvision

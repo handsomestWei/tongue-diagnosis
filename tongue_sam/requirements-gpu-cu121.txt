@@ -1,0 +1,17 @@
+# Recommended Python: 3.10 or 3.11
+# GPU (CUDA 12.1) dependency split:
+# 1) Install torch/torchvision from PyTorch CUDA index first
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# 2) Then install the rest:
+#    pip install -r requirements-gpu-cu121.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+numpy
+pillow
+matplotlib
+scikit-image
+opencv-python
+tqdm
+scikit-learn
+scipy
+pandas
+monai
