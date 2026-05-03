@@ -1,74 +1,50 @@
-"""JWT 与演示用户（内存）；生产迁移至 User 表 + 持久化哈希。"""
+"""JWT 与数据库用户。"""
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any
+from typing import Annotated
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from api.config import Settings, get_settings
+from api.deps import get_db
+from db.models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 Role = str  # "admin" | "annotator" | "viewer"
 
-_users_cache: dict[str, dict[str, Any]] | None = None
-_settings_fingerprint: tuple[str, str, str] | None = None
 
-
-def _hash_password(plain: str) -> str:
+def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def _verify_password(plain: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except ValueError:
         return False
 
 
-def _users_for_settings(settings: Settings) -> dict[str, dict[str, Any]]:
-    """每个进程内按口令缓存一次 bcrypt，避免每次请求重算。"""
-    global _users_cache, _settings_fingerprint
-    fp = (
-        settings.dev_admin_password,
-        settings.dev_annotator_password,
-        settings.dev_viewer_password,
-    )
-    if _users_cache is None or _settings_fingerprint != fp:
-        _settings_fingerprint = fp
-        _users_cache = {
-            "admin": {
-                "username": "admin",
-                "full_name": "系统管理员",
-                "role": "admin",
-                "password_hash": _hash_password(settings.dev_admin_password),
-            },
-            "annotator": {
-                "username": "annotator",
-                "full_name": "标注员",
-                "role": "annotator",
-                "password_hash": _hash_password(settings.dev_annotator_password),
-            },
-            "viewer": {
-                "username": "viewer",
-                "full_name": "只读访客",
-                "role": "viewer",
-                "password_hash": _hash_password(settings.dev_viewer_password),
-            },
-        }
-    return _users_cache
+def user_to_dict(row: User) -> dict:
+    return {
+        "username": row.username,
+        "full_name": row.full_name or "",
+        "role": row.role,
+        "id": row.id,
+    }
 
 
-def authenticate_user(username: str, password: str, settings: Settings) -> dict | None:
-    users = _users_for_settings(settings)
-    user = users.get(username)
-    if not user:
+def authenticate_user(db: Session, username: str, password: str) -> User | None:
+    row = db.scalar(select(User).where(User.username == username, User.is_active.is_(True)))
+    if row is None:
         return None
-    if not _verify_password(password, user["password_hash"]):
+    if not verify_password(password, row.password_hash):
         return None
-    return user
+    return row
 
 
 def create_access_token(subject: dict, settings: Settings) -> str:
@@ -92,6 +68,7 @@ def decode_token(token: str, settings: Settings) -> dict:
 async def get_current_user_optional(
     token: Annotated[str | None, Depends(oauth2_scheme)],
     settings: Annotated[Settings, Depends(get_settings)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> dict | None:
     if not token:
         return None
@@ -102,15 +79,10 @@ async def get_current_user_optional(
             return None
     except JWTError:
         return None
-    users = _users_for_settings(settings)
-    row = users.get(username)
-    if not row:
+    row = db.scalar(select(User).where(User.username == username, User.is_active.is_(True)))
+    if row is None:
         return None
-    return {
-        "username": row["username"],
-        "full_name": row["full_name"],
-        "role": row["role"],
-    }
+    return user_to_dict(row)
 
 
 async def get_current_user(

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { http } from '../lib/http'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 const form = ref({
   dataVersion: 'v20260201-default',
@@ -9,20 +14,59 @@ const form = ref({
   batch: 8,
 })
 
-const jobs = ref([
-  {
-    id: 'train-01',
-    status: 'running',
-    progress: 62,
-    kindMix: '全脸 320 / 特写 410',
-  },
-  {
-    id: 'train-00',
-    status: 'success',
-    progress: 100,
-    kindMix: '全脸 300 / 特写 350',
-  },
-])
+type TrainListItem = { id: string; status: string; created_at: string; message?: string }
+
+const jobs = ref<TrainListItem[]>([])
+const loading = ref(false)
+
+function progressForStatus(status: string): number {
+  if (status === 'success') return 100
+  if (status === 'running') return 50
+  if (status === 'failed') return 0
+  return 5
+}
+
+const tableRows = computed(() =>
+  jobs.value.map((j) => ({
+    id: j.id,
+    status: j.status,
+    progress: progressForStatus(j.status),
+    kindMix: '—（导出按 image_kind 统计，占位 UI）',
+  })),
+)
+
+async function refresh() {
+  loading.value = true
+  try {
+    const { data } = await http.get<TrainListItem[]>('/v1/train')
+    jobs.value = data
+  } catch {
+    ElMessage.error('加载训练任务失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  void refresh()
+})
+
+async function submitTrain() {
+  if (!auth.canTrain) return
+  try {
+    await http.post('/v1/train', {
+      data_version: form.value.dataVersion,
+      model: form.value.model,
+      epochs: form.value.epochs,
+      imgsz: form.value.imgsz,
+      batch: form.value.batch,
+    })
+    ElMessage.success('已创建训练任务（后端为占位排队，尚未跑 YOLO）')
+    await refresh()
+  } catch {
+    ElMessage.error('提交失败或无权限')
+  }
+}
 </script>
 
 <template>
@@ -51,7 +95,9 @@ const jobs = ref([
               <el-input-number v-model="form.batch" :min="1" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary">提交训练任务</el-button>
+              <el-button type="primary" :disabled="!auth.canTrain" @click="submitTrain">
+                提交训练任务
+              </el-button>
             </el-form-item>
           </el-form>
         </div>
@@ -59,26 +105,31 @@ const jobs = ref([
       <el-col :xs="24" :lg="14">
         <div class="view-card">
           <h3 class="view-heading">任务列表</h3>
-          <el-table :data="jobs" stripe>
-            <el-table-column prop="id" label="任务 ID" width="120" />
+          <el-button size="small" :loading="loading" @click="refresh">刷新</el-button>
+          <el-table v-loading="loading" :data="tableRows" stripe class="mt">
+            <el-table-column prop="id" label="任务 ID" width="280" />
             <el-table-column prop="kindMix" label="样本构成" />
             <el-table-column label="状态" width="120">
               <template #default="{ row }">
                 <el-tag v-if="row.status === 'running'" type="warning">训练中</el-tag>
+                <el-tag v-else-if="row.status === 'pending'" type="info">待处理</el-tag>
+                <el-tag v-else-if="row.status === 'failed'" type="danger">失败</el-tag>
                 <el-tag v-else type="success">完成</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="进度" width="200">
               <template #default="{ row }">
-                <el-progress :percentage="row.progress" :status="row.status === 'success' ? 'success' : undefined" />
+                <el-progress
+                  :percentage="row.progress"
+                  :status="row.status === 'success' ? 'success' : undefined"
+                />
               </template>
             </el-table-column>
           </el-table>
         </div>
         <div class="view-card">
-          <h3 class="view-heading">日志（演示）</h3>
-          <pre class="log-box">Epoch 48/80 · train loss 0.42 · device cpu
-Validating · top1 0.81 · top5 0.96</pre>
+          <h3 class="view-heading">说明</h3>
+          <pre class="log-box">当前任务仅写入 train_jobs 表；真实训练流水线见开发计划 P3。</pre>
         </div>
       </el-col>
     </el-row>
@@ -88,11 +139,15 @@ Validating · top1 0.81 · top5 0.96</pre>
 <style scoped>
 .log-box {
   margin: 0;
-  background: #0d1117;
-  color: #7ee787;
-  padding: 14px;
+  padding: 12px;
+  background: var(--td-surface-2, #111);
   border-radius: 8px;
   font-size: 12px;
-  overflow-x: auto;
+  color: var(--td-muted, #aaa);
+  max-height: 220px;
+  overflow: auto;
+}
+.mt {
+  margin-top: 12px;
 }
 </style>
