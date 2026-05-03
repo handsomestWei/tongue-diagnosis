@@ -8,7 +8,8 @@
 - **环境变量（后端）**：`DATABASE_URL`（默认 `sqlite:///./data/app.db`）、`STORAGE_ROOT`（默认 `./storage`）、`JWT_SECRET_KEY` 等由 `api/config.py`（pydantic-settings）读取。开发默认 **`AUTO_CREATE_TABLES=true`** 与 **`SEED_DEMO_USERS=true`** 会在启动时 `create_all` 并种子 `admin` / `annotator` / `viewer`（口令见配置项 `dev_*_password`）；**生产应关闭**上述两项，仅使用 **Alembic** 与真实用户数据源。
 - **数据库迁移**：根目录已有 `alembic.ini` 与 `migrations/`。在仓库根执行：`PYTHONPATH=. alembic upgrade head`（需已安装 `api` 依赖）。SQLite 路径的父目录会在迁移与应用启动时尽量自动创建。
 - **上传接口路径**：图片上传为 **`POST /api/v1/images/upload`**（multipart：`file` + 必选表单字段 **`image_kind`** ∈ `full_face_selfie` | `tongue_closeup`）。标注为 **`PATCH /api/v1/images/{id}/labels`**。**viewer 角色**对该类写操作会 **403**（由后端强制）。
-- **推理**：`POST /api/v1/infer` — **上传**时须带 `image_kind` + `file`；**仅** `image_id` 时从库读取类型与文件。环境变量 **`CLASSIFY_WEIGHTS_PATH`** 指向 `.pt` 且存在则跑 **Ultralytics YOLO classify**（CPU 见 `INFER_DEVICE`）；未配置则返回演示 top-k。`full_face_selfie` 会通过子进程执行 **`TONGUESAM_ROOT`/predict.py**（超时 `INFER_SAM_TIMEOUT_SEC`）；特写 **不调 SAM**。核心逻辑在 `core/`（`preprocess_classify.py`、`sam_bridge.py`、`inference_yolo.py`、`inference_service.py`）。
+- **推理**：`POST /api/v1/infer` — **上传**时须带 `image_kind` + `file`；**仅** `image_id` 时从库读取类型与文件。环境变量 **`CLASSIFY_WEIGHTS_PATH`** 指向 `.pt` 且存在则跑 **Ultralytics YOLO classify**（CPU 见 `INFER_DEVICE`）；未配置则返回演示 top-k。`full_face_selfie` 会通过子进程执行 **`TONGUESAM_ROOT`/predict.py**（超时 `INFER_SAM_TIMEOUT_SEC`）；特写 **不调 SAM**。核心逻辑在 `core/`。
+- **批量推理**：**`POST /api/v1/infer/batch`**（JSON：`image_ids`、`topk`）。当前在**请求进程内同步**顺序执行，结果写入 **`async_jobs`**。**`GET /api/v1/jobs/{job_id}`** 返回 `payload` / `result`（`items` 每图结果，`errors` 失败汇总）。生产可改为后台 Worker。
 - **占位**：`POST /api/v1/train` 仍仅写 `train_jobs`、未跑真实训练；CLI 仍以 `README.md` 为准。
 - **前端**：`web/` 下 `npm ci`（或 `npm install`）后 `npm run dev`；`vite` 将 **`/api` 代理** 到 `http://127.0.0.1:8000`。演示账号与 RBAC 行为见 `web/src/views/LoginView.vue` 提示。
 - **测试**：`pytest tests/`（`conftest.py` 固定临时 SQLite；需 `pip install -e ".[api,dev]"` 且 **`PYTHONPATH` 为仓库根**）。
