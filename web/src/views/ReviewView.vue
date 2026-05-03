@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+
 const rows = [
   { pred: '淡红舌', truth: '红舌', conf: 0.52, include: true },
   { pred: '紫舌', truth: '紫舌', conf: 0.88, include: false },
@@ -28,7 +32,13 @@ const rows = [
         </el-table-column>
         <el-table-column label="操作" width="140">
           <template #default>
-            <el-button type="primary" size="small">提交纠正</el-button>
+            <el-button
+              type="primary"
+              size="small"
+              :disabled="!auth.canMutateReview"
+            >
+              提交纠正
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

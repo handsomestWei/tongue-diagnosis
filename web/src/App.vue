@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   Box,
   CircleCheck,
@@ -11,13 +11,31 @@ import {
   Setting,
   UploadFilled,
 } from '@element-plus/icons-vue'
+import { useAuthStore } from './stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
 const currentTitle = computed(() => route.meta.title as string)
+const isBlankLayout = computed(() => route.meta.layout === 'blank')
+
+function logout() {
+  auth.logout()
+  router.push({ name: 'login' })
+}
+
+const roleLabel: Record<string, string> = {
+  admin: '管理员',
+  annotator: '标注员',
+  viewer: '只读',
+}
 </script>
 
 <template>
-  <el-container class="layout-root">
+  <router-view v-if="isBlankLayout" />
+
+  <el-container v-else class="layout-root">
     <el-aside width="232px" class="aside">
       <div class="brand">
         <span class="brand-mark">舌</span>
@@ -35,15 +53,15 @@ const currentTitle = computed(() => route.meta.title as string)
           <el-icon><Odometer /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/upload">
+        <el-menu-item v-if="auth.canUpload" index="/upload">
           <el-icon><UploadFilled /></el-icon>
           <span>批量上传</span>
         </el-menu-item>
-        <el-menu-item index="/annotate">
+        <el-menu-item v-if="auth.canUpload" index="/annotate">
           <el-icon><EditPen /></el-icon>
           <span>标注工作台</span>
         </el-menu-item>
-        <el-sub-menu index="train-group">
+        <el-sub-menu v-if="auth.canTrain" index="train-group">
           <template #title>
             <el-icon><Cpu /></el-icon>
             <span>训练</span>
@@ -59,11 +77,11 @@ const currentTitle = computed(() => route.meta.title as string)
           <el-icon><CircleCheck /></el-icon>
           <span>纠错审核</span>
         </el-menu-item>
-        <el-menu-item index="/models">
+        <el-menu-item v-if="auth.canManageModels" index="/models">
           <el-icon><Box /></el-icon>
           <span>模型管理</span>
         </el-menu-item>
-        <el-menu-item index="/settings">
+        <el-menu-item v-if="auth.canSettings" index="/settings">
           <el-icon><Setting /></el-icon>
           <span>系统设置</span>
         </el-menu-item>
@@ -75,7 +93,11 @@ const currentTitle = computed(() => route.meta.title as string)
           <el-tag type="info" size="small" effect="plain">CPU · Vue 3</el-tag>
           <span class="page-title">{{ currentTitle }}</span>
         </div>
-        <div class="header-actions">
+        <div class="header-actions user-area">
+          <el-tag v-if="auth.user" size="small" effect="dark" type="success" class="role-tag">
+            {{ auth.user.username }} · {{ roleLabel[auth.user.role] ?? auth.user.role }}
+          </el-tag>
+          <el-button size="small" @click="logout">退出登录</el-button>
           <el-button size="small" type="primary" plain>帮助文档</el-button>
         </div>
       </el-header>
@@ -191,6 +213,16 @@ const currentTitle = computed(() => route.meta.title as string)
 .main {
   padding: 24px;
   background: var(--td-bg);
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-tag {
+  margin-right: 4px;
 }
 
 .fade-enter-active,

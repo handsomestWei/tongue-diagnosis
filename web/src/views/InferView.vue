@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useAuthStore } from '../stores/auth'
 
+const auth = useAuthStore()
 const model = ref('v0.2-cls')
 const results = ref([
   { file: 'a_01.jpg', kind: 'full_face_selfie', pred: '淡红舌', conf: 0.91 },
@@ -45,7 +47,9 @@ const results = ref([
         </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default>
-            <el-button link type="primary" size="small">纠错</el-button>
+            <el-button link type="primary" size="small" :disabled="!auth.canMutateReview"
+              >纠错</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
