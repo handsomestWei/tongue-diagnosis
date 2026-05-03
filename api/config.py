@@ -25,10 +25,19 @@ class Settings(BaseSettings):
     infer_device: str = "cpu"
     infer_imgsz: int = 224
     infer_sam_timeout_sec: int = 600
+    # 进程内并发：单进程多请求时限制同时推理 / 同时 TongueSAM 子进程数
+    infer_concurrency: int = 4
+    infer_sam_concurrency: int = 1
 
     # P3 训练：工作目录与 device（留空则 Ultralytics 自动）
     train_work_root: str = "./storage/train_work"
     train_device: str = "cpu"
+
+    # 全局限流：每分钟每 IP（或 X-Forwarded-For 首个）最大请求数；0 关闭
+    rate_limit_per_minute: int = 0
+
+    # 访问日志（JSON 行）；0 关闭
+    access_log_enabled: bool = True
 
 
 @lru_cache

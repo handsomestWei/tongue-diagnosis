@@ -14,6 +14,8 @@ const epochs = ref(5)
 const batch = ref(4)
 const submitting = ref(false)
 
+const selection = ref<'corrections_merged' | 'corrections_only' | 'all_manual'>('corrections_merged')
+
 async function loadModels() {
   try {
     const { data } = await http.get<ModelRow[]>('/v1/models')
@@ -36,6 +38,7 @@ async function submitIncremental() {
       parent_model_id: parentId.value,
       epochs: epochs.value,
       batch: batch.value,
+      selection: selection.value,
     })
     ElMessage.success('已提交增量训练，请到「模型训练」页刷新任务列表')
   } catch {
@@ -51,8 +54,8 @@ onMounted(() => void loadModels())
 <template>
   <div>
     <p class="view-muted">
-      调用 <code>POST /api/v1/train/incremental</code>：与全量相同的导出与预处理，在父模型权重上做继续训练。请选择已注册且
-      <strong>path 指向真实 .pt</strong> 的条目。
+      <code>POST /api/v1/train/incremental</code>：按下方 <strong>数据选择策略</strong> 导出子集，在父模型权重上继续训练。默认
+      <strong>纠错合并</strong>：全量 manual + 勾选「纳入再训练」的纠错覆盖类别。
     </p>
     <div class="view-card" style="max-width: 640px">
       <h3 class="view-heading">增量训练</h3>
@@ -65,6 +68,13 @@ onMounted(() => void loadModels())
               :label="`${m.name} (id=${m.id})`"
               :value="m.id"
             />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数据策略">
+          <el-select v-model="selection" style="width: 100%">
+            <el-option label="纠错合并（推荐）" value="corrections_merged" />
+            <el-option label="仅纠错勾选样本" value="corrections_only" />
+            <el-option label="全量 manual（等同全量训练导出）" value="all_manual" />
           </el-select>
         </el-form-item>
         <el-form-item label="epochs">

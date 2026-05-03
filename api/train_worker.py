@@ -64,6 +64,8 @@ def _run_train_job_impl(job_id: str, settings: Settings) -> None:
                 unsharp=bool(params.get("unsharp", False)),
                 update_derived_paths=True,
                 imgsz=int(params.get("imgsz", settings.infer_imgsz)),
+                selection=str(params.get("export_selection", "all_manual")),
+                merge_base_manual=bool(params.get("merge_base_manual", False)),
             )
 
         log_line("导出完成，开始 YOLO 训练")

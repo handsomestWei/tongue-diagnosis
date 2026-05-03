@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,8 @@ import uuid
 from pathlib import Path
 
 from tongue_diag.roi.pipeline import load_roi_json, pick_xyxy
+
+from core.infer_slots import acquire_sam_slot
 
 log = logging.getLogger(__name__)
 
@@ -52,14 +55,19 @@ def run_tonguesam_get_mask_box(
     shutil.copy2(image_path, dest)
 
     try:
-        r = subprocess.run(
-            [sys.executable, str(pred)],
-            cwd=str(tonguesam_root),
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-            check=False,
-        )
+        with acquire_sam_slot():
+            env = os.environ.copy()
+            # API 路径无需写可视化 PNG，加速并减少 IO
+            env.setdefault("TONGUESAM_WRITE_VISUAL", "0")
+            r = subprocess.run(
+                [sys.executable, str(pred)],
+                cwd=str(tonguesam_root),
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+                check=False,
+                env=env,
+            )
         if r.returncode != 0:
             log.warning("TongueSAM exit %s: %s", r.returncode, (r.stderr or "")[:500])
             raise RuntimeError(f"TongueSAM 退出码 {r.returncode}")
