@@ -16,6 +16,7 @@ from api.auth_core import require_roles
 from api.config import Settings, get_settings
 from api.deps import get_db
 from db.models import Image, ImageKind, Label, Project
+from db.repository import ImageRepository
 
 router = APIRouter(prefix="/api/v1/images", tags=["images"])
 
@@ -200,21 +201,12 @@ def patch_labels(
     image_id: int,
     body: LabelPatchBody,
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
     _: Annotated[dict, Depends(require_roles("admin", "annotator"))],
 ):
-    row = db.get(Image, image_id)
+    repo = ImageRepository(db, settings)
+    row = repo.get(image_id)
     if not row:
         raise HTTPException(status_code=404, detail="图片不存在")
-    for lbl in list(row.labels):
-        if lbl.source == "manual":
-            db.delete(lbl)
-    db.add(
-        Label(
-            image_id=image_id,
-            class_name=body.class_name,
-            source="manual",
-            confidence=None,
-        )
-    )
-    db.commit()
+    repo.replace_manual_label(image_id, body.class_name)
     return {"ok": True, "image_id": image_id, "class_name": body.class_name}

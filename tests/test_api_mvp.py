@@ -1,17 +1,5 @@
-import os
-from pathlib import Path
-
 import pytest
 from starlette.testclient import TestClient
-
-_tmp_db = Path("/tmp/td_test_api.db")
-if _tmp_db.is_file():
-    _tmp_db.unlink()
-
-os.environ["DATABASE_URL"] = "sqlite:////tmp/td_test_api.db"
-os.environ["STORAGE_ROOT"] = "/tmp/td_test_storage"
-os.environ["SEED_DEMO_USERS"] = "true"
-os.environ["AUTO_CREATE_TABLES"] = "true"
 
 from api.main import app
 

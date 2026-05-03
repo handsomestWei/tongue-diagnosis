@@ -24,8 +24,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Tongue Diagnosis API",
-    version="0.2.0",
-    description="舌象平台 API：鉴权、图片/标注、训练与模型占位。",
+    version="0.3.0",
+    description="舌象平台 API：鉴权、图片/标注、训练占位、推理（YOLO + 可选 TongueSAM）。",
     lifespan=lifespan,
 )
 
