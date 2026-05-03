@@ -1,0 +1,19 @@
+# 开发/演示用 compose：API + SQLite 数据卷。生产请换 MySQL 并关闭 AUTO_CREATE_TABLES / SEED_DEMO_USERS。
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:////data/app.db
+      STORAGE_ROOT: /data/storage
+      AUTO_CREATE_TABLES: "true"
+      SEED_DEMO_USERS: "true"
+    volumes:
+      - tongue_api_data:/data
+    working_dir: /app
+
+volumes:
+  tongue_api_data:

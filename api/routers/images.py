@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from api.auth_core import require_roles
 from api.config import Settings, get_settings
 from api.deps import get_db
+from core.derived_regenerate import regenerate_derived_for_image
 from db.models import Image, ImageKind, Label, Project
 from db.repository import ImageRepository
 
@@ -82,7 +83,8 @@ class ImagePatchBody(BaseModel):
     image_kind: Optional[str] = None
     preprocess_version: Optional[str] = None
     regenerate_derived: bool = Field(
-        default=False, description="占位：后续异步生成 derived 舌图"
+        default=False,
+        description="为 True 时按当前 image_kind 立即重算规范舌图并更新 derived_tongue_path（full_face 会调 TongueSAM）",
     )
 
 
@@ -244,6 +246,7 @@ def patch_image(
     image_id: int,
     body: ImagePatchBody,
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
     _: Annotated[dict, Depends(require_roles("admin", "annotator"))],
 ):
     row = db.get(Image, image_id)
@@ -254,8 +257,14 @@ def patch_image(
     if body.preprocess_version is not None:
         row.preprocess_version = body.preprocess_version
     if body.regenerate_derived:
-        # 占位：后续 Worker 根据 image_kind 生成 derived_tongue_path
-        row.derived_tongue_path = None
+        try:
+            regenerate_derived_for_image(db, settings, row)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
     db.add(row)
     db.commit()
     db.refresh(row)

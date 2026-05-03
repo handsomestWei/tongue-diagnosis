@@ -48,6 +48,19 @@ class TrainJobListOut(BaseModel):
     status: str
     created_at: datetime
     message: str = ""
+    job_hint: str = ""
+
+
+def _job_list_hint(row: TrainJob) -> str:
+    """列表用简短说明（非详细日志）。"""
+    try:
+        p = json.loads(row.params_json or "{}")
+    except json.JSONDecodeError:
+        p = {}
+    if p.get("job_subtype") == "incremental":
+        sel = str(p.get("selection", ""))
+        return f"增量训练 · {sel}" if sel else "增量训练"
+    return "全量训练 · manual 标注导出"
 
 
 @router_train.get("", response_model=list[TrainJobListOut])
@@ -63,6 +76,7 @@ def list_train_jobs(
             status=r.status,
             created_at=r.created_at,
             message=(r.error_message or "")[:200],
+            job_hint=_job_list_hint(r),
         )
         for r in rows
     ]
