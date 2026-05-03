@@ -31,7 +31,7 @@ const tableRows = computed(() =>
     id: j.id,
     status: j.status,
     progress: progressForStatus(j.status),
-    kindMix: '—（导出按 image_kind 统计，占位 UI）',
+    kindMix: j.status === 'failed' ? '失败' : j.status === 'running' ? '导出/训练中…' : '—',
   })),
 )
 
@@ -60,11 +60,14 @@ async function submitTrain() {
       epochs: form.value.epochs,
       imgsz: form.value.imgsz,
       batch: form.value.batch,
+      val_ratio: 0.2,
+      register_name: `cls-${Date.now()}`,
+      set_as_default: false,
     })
-    ElMessage.success('已创建训练任务（后端为占位排队，尚未跑 YOLO）')
+    ElMessage.success('训练已在后台启动（导出+YOLO）；请稍后刷新任务列表')
     await refresh()
   } catch {
-    ElMessage.error('提交失败或无权限')
+    ElMessage.error('提交失败或无权限（需已有人工标注图片）')
   }
 }
 </script>
@@ -129,7 +132,7 @@ async function submitTrain() {
         </div>
         <div class="view-card">
           <h3 class="view-heading">说明</h3>
-          <pre class="log-box">当前任务仅写入 train_jobs 表；真实训练流水线见开发计划 P3。</pre>
+          <pre class="log-box">需要至少一张图含「人工标注」。任务在服务端线程中执行：导出 YOLO 目录 → Ultralytics 训练 → 注册 best.pt。日志路径见 GET /api/v1/train/{id}。</pre>
         </div>
       </el-col>
     </el-row>

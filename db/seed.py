@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.config import Settings
-from db.models import Project, User, UserRole
+from db.models import ModelRegistry, Project, User, UserRole
 from db.session import get_engine
 
 
@@ -38,6 +38,17 @@ def ensure_demo_seed(db: Session, settings: Settings) -> None:
             )
         )
     db.commit()
+
+    if not db.scalar(select(ModelRegistry).where(ModelRegistry.name == "demo-no-weights")):
+        db.add(
+            ModelRegistry(
+                name="demo-no-weights",
+                path="_demo_placeholder_",
+                is_default=True,
+                status="demo",
+            )
+        )
+        db.commit()
 
 
 def init_db_schema_and_seed(settings: Settings) -> None:

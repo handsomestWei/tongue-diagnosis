@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     infer_imgsz: int = 224
     infer_sam_timeout_sec: int = 600
 
+    # P3 训练：工作目录与 device（留空则 Ultralytics 自动）
+    train_work_root: str = "./storage/train_work"
+    train_device: str = "cpu"
+
 
 @lru_cache
 def get_settings() -> Settings:
