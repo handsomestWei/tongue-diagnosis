@@ -1,0 +1,54 @@
+:root {
+  --td-bg: #f0f5f5;
+  --td-surface: #ffffff;
+  --td-text: #1a2e2e;
+  --td-muted: #5c7171;
+  --td-accent: #0d7377;
+  --td-border: #d4e1e1;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  color: var(--td-text);
+  background: var(--td-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.view-card {
+  background: var(--td-surface);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--td-border);
+  margin-bottom: 16px;
+}
+
+.view-heading {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--td-text);
+}
+
+.view-muted {
+  font-size: 13px;
+  color: var(--td-muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}

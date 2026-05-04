@@ -26,3 +26,9 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# 前端
+web/node_modules/
+
+# Playwright 测试产物（若后续增加）
+**/test-results/
