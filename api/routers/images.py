@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,6 +58,26 @@ class ImageOut(BaseModel):
     height: Optional[int] = None
 
 
+class LabelOut(BaseModel):
+    id: int
+    class_name: str
+    source: str
+
+
+class ImageDetailOut(BaseModel):
+    id: int
+    project_id: int
+    original_filename: str
+    storage_path: str
+    image_kind: str
+    derived_tongue_path: Optional[str] = None
+    preprocess_version: str
+    sha256: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    labels: list[LabelOut] = []
+
+
 class ImagePatchBody(BaseModel):
     image_kind: Optional[str] = None
     preprocess_version: Optional[str] = None
@@ -92,6 +113,62 @@ def list_images(
         )
         for r in rows
     ]
+
+
+@router.get("/{image_id}", response_model=ImageDetailOut)
+def get_image(
+    image_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[dict, Depends(require_roles("admin", "annotator", "viewer"))],
+):
+    row = db.get(Image, image_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    labels = [
+        LabelOut(id=l.id, class_name=l.class_name, source=l.source)
+        for l in sorted(row.labels, key=lambda x: x.id)
+    ]
+    return ImageDetailOut(
+        id=row.id,
+        project_id=row.project_id,
+        original_filename=row.original_filename,
+        storage_path=row.storage_path,
+        image_kind=row.image_kind,
+        derived_tongue_path=row.derived_tongue_path,
+        preprocess_version=row.preprocess_version,
+        sha256=row.sha256,
+        width=row.width,
+        height=row.height,
+        labels=labels,
+    )
+
+
+@router.get("/{image_id}/file")
+def get_image_file(
+    image_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    _: Annotated[dict, Depends(require_roles("admin", "annotator", "viewer"))],
+    rel: Optional[str] = None,
+):
+    """返回原始或 derived 图片文件；rel 为 storage_root 下相对路径，默认原图。"""
+    row = db.get(Image, image_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    root = Path(settings.storage_root).resolve()
+    sub = (rel or row.storage_path or "").replace("\\", "/").lstrip("/")
+    if ".." in Path(sub).parts:
+        raise HTTPException(status_code=400, detail="非法路径")
+    path = (root / sub).resolve()
+    try:
+        ok = path.is_relative_to(root)
+    except AttributeError:
+        ok = str(path).startswith(str(root) + os.sep) or path == root
+    if not ok:
+        raise HTTPException(status_code=400, detail="路径须位于 storage_root 下")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(str(path), filename=path.name)
 
 
 @router.post("/upload", response_model=ImageOut)

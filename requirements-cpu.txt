@@ -1,0 +1,10 @@
+# CPU 环境依赖摘要（与 pyproject 主依赖一致，无 CUDA 专用包）
+#
+# 推荐：在仓库根使用 Python 3.10 虚拟环境后执行
+#   pip install -e ".[api,dev]"
+#
+# 若需与 README 对齐的极简列表（不含 API extra）：
+# numpy>=1.23
+# opencv-python-headless>=4.8
+# ultralytics>=8.0.0
+# torch  # 请从 pytorch.org 选择 CPU wheel，或使用项目既有安装方式

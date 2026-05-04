@@ -21,10 +21,23 @@ type ResultRow = {
   conf: number
   demo?: boolean
   sam?: string
+  predId?: number | null
+}
+
+const persistPred = ref(false)
+const modelIdForPersist = ref<number | null>(null)
+
+type InferResp = {
+  topk: { class: string; score: number }[]
+  demo: boolean
+  message: string
+  image_kind: string
+  sam_called: boolean
+  sam_failed: boolean
+  prediction_id?: number | null
 }
 
 const results = ref<ResultRow[]>([])
-
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 async function runInfer() {
@@ -38,6 +51,12 @@ async function runInfer() {
         return
       }
       fd.append('image_id', String(imageId.value))
+      if (persistPred.value) {
+        fd.append('persist', 'true')
+        if (modelIdForPersist.value != null && modelIdForPersist.value >= 1) {
+          fd.append('model_id', String(modelIdForPersist.value))
+        }
+      }
     } else {
       const input = fileInputRef.value
       const file = input?.files?.[0]
@@ -48,14 +67,7 @@ async function runInfer() {
       fd.append('image_kind', imageKind.value)
       fd.append('file', file)
     }
-    const { data } = await http.post<{
-      topk: { class: string; score: number }[]
-      demo: boolean
-      message: string
-      image_kind: string
-      sam_called: boolean
-      sam_failed: boolean
-    }>('/v1/infer', fd)
+    const { data } = await http.post<InferResp>('/v1/infer', fd)
 
     const best = data.topk[0]
     const label =
@@ -68,6 +80,7 @@ async function runInfer() {
         conf: best?.score ?? 0,
         demo: data.demo,
         sam: data.sam_called ? (data.sam_failed ? 'SAM 回退' : 'SAM') : '无',
+        predId: data.prediction_id,
       },
       ...results.value,
     ].slice(0, 20)
@@ -111,6 +124,12 @@ async function runInfer() {
           <el-form-item label="image_id">
             <el-input-number v-model="imageId" :min="1" :step="1" />
           </el-form-item>
+          <el-form-item label="落库预测">
+            <el-switch v-model="persistPred" />
+          </el-form-item>
+          <el-form-item v-if="persistPred" label="model_id">
+            <el-input-number v-model="modelIdForPersist" :min="1" :step="1" placeholder="可选，默认用默认模型" />
+          </el-form-item>
         </template>
         <el-form-item label="Top-K">
           <el-input-number v-model="topk" :min="1" :max="10" />
@@ -134,6 +153,11 @@ async function runInfer() {
         <el-table-column prop="conf" label="置信度">
           <template #default="{ row }">
             {{ (row.conf * 100).toFixed(1) }}%
+          </template>
+        </el-table-column>
+        <el-table-column label="预测 ID" width="90">
+          <template #default="{ row }">
+            <span>{{ row.predId ?? '—' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">

@@ -1,9 +1,10 @@
-"""训练/模型占位 API（P3 进度），需鉴权。"""
+"""训练任务与模型注册 API（P3）。"""
 from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from api.auth_core import require_roles
 from api.deps import get_db
+from api.train_worker import spawn_train_job_thread
 from db.models import ModelRegistry, TrainJob, TrainJobStatus
 
 router_train = APIRouter(prefix="/api/v1/train", tags=["train"])
@@ -24,6 +26,14 @@ class TrainSubmitBody(BaseModel):
     epochs: int = Field(default=1, ge=1, le=500)
     imgsz: int = Field(default=224, ge=32)
     batch: int = Field(default=4, ge=1)
+    val_ratio: float = Field(default=0.2, ge=0.05, le=0.5)
+    seed: int = Field(default=42)
+    margin: float = Field(default=0.12)
+    letterbox: bool = True
+    clahe: bool = True
+    unsharp: bool = False
+    register_name: Optional[str] = None
+    set_as_default: bool = False
 
 
 class TrainJobOut(BaseModel):
@@ -64,18 +74,71 @@ def submit_train(
     db: Annotated[Session, Depends(get_db)],
     _: Annotated[dict, Depends(require_roles("admin", "annotator"))],
 ):
+    payload = body.model_dump()
     job = TrainJob(
         status=TrainJobStatus.pending.value,
-        params_json=json.dumps(body.model_dump()),
+        params_json=json.dumps(payload, ensure_ascii=False),
     )
     db.add(job)
     db.commit()
     db.refresh(job)
+    spawn_train_job_thread(job.id)
     return TrainJobOut(
         id=job.id,
         status=job.status,
         created_at=job.created_at,
-        message="已入队（占位：尚未执行 YOLO 训练）",
+        message="训练已在后台启动（导出 YOLO 数据 + Ultralytics classify；见 GET /api/v1/train/{id}）",
+    )
+
+
+class IncrementalTrainBody(BaseModel):
+    parent_model_id: int
+    data_version: str = "incremental"
+    model: str = "yolov8n-cls.pt"
+    epochs: int = Field(default=5, ge=1, le=200)
+    imgsz: int = Field(default=224, ge=32)
+    batch: int = Field(default=4, ge=1)
+    selection: str = "corrections_with_flag"
+    register_name: Optional[str] = None
+
+
+@router_train.post("/incremental", response_model=TrainJobOut)
+def submit_incremental(
+    body: IncrementalTrainBody,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[dict, Depends(require_roles("admin", "annotator"))],
+):
+    parent = db.get(ModelRegistry, body.parent_model_id)
+    if not parent:
+        raise HTTPException(status_code=400, detail="parent_model_id 不存在")
+    if not Path(parent.path).expanduser().is_file():
+        raise HTTPException(status_code=400, detail="父模型路径不可读，无法增量微调")
+
+    payload = {
+        "job_subtype": "incremental",
+        "parent_model_id": body.parent_model_id,
+        "parent_weights": parent.path,
+        "data_version": body.data_version,
+        "model": body.model,
+        "epochs": body.epochs,
+        "imgsz": body.imgsz,
+        "batch": body.batch,
+        "selection": body.selection,
+        "register_name": body.register_name or f"incremental-{body.parent_model_id}",
+    }
+    job = TrainJob(
+        status=TrainJobStatus.pending.value,
+        params_json=json.dumps(payload, ensure_ascii=False),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    spawn_train_job_thread(job.id)
+    return TrainJobOut(
+        id=job.id,
+        status=job.status,
+        created_at=job.created_at,
+        message="增量任务已启动（与全量共用导出；父权重作为微调起点）",
     )
 
 
@@ -96,6 +159,8 @@ def get_train(
         "metrics": json.loads(row.metrics_json or "null"),
         "error_message": row.error_message,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
     }
 
 
