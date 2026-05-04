@@ -14,7 +14,7 @@ const form = ref({
   batch: 8,
 })
 
-type TrainListItem = { id: string; status: string; created_at: string; message?: string }
+type TrainListItem = { id: string; status: string; created_at: string; message?: string; job_hint?: string }
 
 const jobs = ref<TrainListItem[]>([])
 const loading = ref(false)
@@ -31,7 +31,7 @@ const tableRows = computed(() =>
     id: j.id,
     status: j.status,
     progress: progressForStatus(j.status),
-    kindMix: j.status === 'failed' ? '失败' : j.status === 'running' ? '导出/训练中…' : '—',
+    kindMix: j.job_hint || (j.status === 'failed' ? '失败' : j.status === 'running' ? '导出/训练中…' : '—'),
   })),
 )
 
@@ -111,7 +111,7 @@ async function submitTrain() {
           <el-button size="small" :loading="loading" @click="refresh">刷新</el-button>
           <el-table v-loading="loading" :data="tableRows" stripe class="mt">
             <el-table-column prop="id" label="任务 ID" width="280" />
-            <el-table-column prop="kindMix" label="样本构成" />
+            <el-table-column prop="kindMix" label="任务类型" min-width="180" />
             <el-table-column label="状态" width="120">
               <template #default="{ row }">
                 <el-tag v-if="row.status === 'running'" type="warning">训练中</el-tag>

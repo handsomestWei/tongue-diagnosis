@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from api.config import Settings
+from core.infer_slots import acquire_infer_slot
 from core.inference_yolo import classify_topk_bgr
 from core.preprocess_classify import preprocess_for_classify
 from core.sam_bridge import run_tonguesam_get_mask_box
@@ -37,39 +38,40 @@ def run_infer(
     """
     tonguesam_root = Path(settings.tonguesam_root).resolve()
 
-    if image_kind == "full_face_selfie":
-        cleanup_path: Path | None = None
-        path_for_sam = sam_source_path
-        if path_for_sam is None:
-            fd, name = tempfile.mkstemp(suffix=".png")
-            os.close(fd)
-            cleanup_path = Path(name)
-            cv2.imwrite(str(cleanup_path), image_bgr)
-            path_for_sam = cleanup_path
-        try:
+    with acquire_infer_slot():
+        if image_kind == "full_face_selfie":
+            cleanup_path: Path | None = None
+            path_for_sam = sam_source_path
+            if path_for_sam is None:
+                fd, name = tempfile.mkstemp(suffix=".png")
+                os.close(fd)
+                cleanup_path = Path(name)
+                cv2.imwrite(str(cleanup_path), image_bgr)
+                path_for_sam = cleanup_path
+            try:
 
-            def sam_box_provider():
-                return run_tonguesam_get_mask_box(
-                    path_for_sam,
-                    tonguesam_root,
-                    timeout_sec=settings.infer_sam_timeout_sec,
+                def sam_box_provider():
+                    return run_tonguesam_get_mask_box(
+                        path_for_sam,
+                        tonguesam_root,
+                        timeout_sec=settings.infer_sam_timeout_sec,
+                    )
+
+                pre = preprocess_for_classify(
+                    image_bgr,
+                    image_kind,
+                    sam_box_provider=sam_box_provider,
+                    out_size=settings.infer_imgsz,
                 )
-
+            finally:
+                if cleanup_path is not None:
+                    cleanup_path.unlink(missing_ok=True)
+        else:
             pre = preprocess_for_classify(
                 image_bgr,
                 image_kind,
-                sam_box_provider=sam_box_provider,
                 out_size=settings.infer_imgsz,
             )
-        finally:
-            if cleanup_path is not None:
-                cleanup_path.unlink(missing_ok=True)
-    else:
-        pre = preprocess_for_classify(
-            image_bgr,
-            image_kind,
-            out_size=settings.infer_imgsz,
-        )
 
     wraw = (settings.classify_weights_path or "").strip()
     if not wraw:

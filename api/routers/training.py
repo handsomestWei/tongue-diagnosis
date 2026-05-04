@@ -48,6 +48,19 @@ class TrainJobListOut(BaseModel):
     status: str
     created_at: datetime
     message: str = ""
+    job_hint: str = ""
+
+
+def _job_list_hint(row: TrainJob) -> str:
+    """列表用简短说明（非详细日志）。"""
+    try:
+        p = json.loads(row.params_json or "{}")
+    except json.JSONDecodeError:
+        p = {}
+    if p.get("job_subtype") == "incremental":
+        sel = str(p.get("selection", ""))
+        return f"增量训练 · {sel}" if sel else "增量训练"
+    return "全量训练 · manual 标注导出"
 
 
 @router_train.get("", response_model=list[TrainJobListOut])
@@ -63,6 +76,7 @@ def list_train_jobs(
             status=r.status,
             created_at=r.created_at,
             message=(r.error_message or "")[:200],
+            job_hint=_job_list_hint(r),
         )
         for r in rows
     ]
@@ -98,7 +112,10 @@ class IncrementalTrainBody(BaseModel):
     epochs: int = Field(default=5, ge=1, le=200)
     imgsz: int = Field(default=224, ge=32)
     batch: int = Field(default=4, ge=1)
-    selection: str = "corrections_with_flag"
+    selection: str = Field(
+        default="corrections_merged",
+        description="corrections_merged=全量 manual + 勾选纠错覆盖类别；corrections_only=仅勾选纠错样本；all_manual=等同全量导出",
+    )
     register_name: Optional[str] = None
 
 
@@ -114,6 +131,24 @@ def submit_incremental(
     if not Path(parent.path).expanduser().is_file():
         raise HTTPException(status_code=400, detail="父模型路径不可读，无法增量微调")
 
+    sel = (body.selection or "corrections_merged").strip().lower()
+    legacy = {"corrections_with_flag": "corrections_merged"}
+    sel = legacy.get(sel, sel)
+    if sel == "all_manual":
+        export_selection = "all_manual"
+        merge_base = False
+    elif sel in ("corrections_only", "corrections_flagged"):
+        export_selection = "corrections_flagged"
+        merge_base = False
+    elif sel in ("corrections_merged", "merged"):
+        export_selection = "corrections_flagged"
+        merge_base = True
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="selection 须为 all_manual | corrections_only | corrections_merged",
+        )
+
     payload = {
         "job_subtype": "incremental",
         "parent_model_id": body.parent_model_id,
@@ -124,6 +159,8 @@ def submit_incremental(
         "imgsz": body.imgsz,
         "batch": body.batch,
         "selection": body.selection,
+        "export_selection": export_selection,
+        "merge_base_manual": merge_base,
         "register_name": body.register_name or f"incremental-{body.parent_model_id}",
     }
     job = TrainJob(
@@ -138,7 +175,7 @@ def submit_incremental(
         id=job.id,
         status=job.status,
         created_at=job.created_at,
-        message="增量任务已启动（与全量共用导出；父权重作为微调起点）",
+        message="增量任务已启动（按 selection 导出子集；父权重作为微调起点）",
     )
 
 

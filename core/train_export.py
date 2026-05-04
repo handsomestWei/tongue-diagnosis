@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from api.config import Settings
 from core.preprocess_classify import preprocess_for_classify
 from core.sam_bridge import run_tonguesam_get_mask_box
-from db.models import Image, Label
+from db.models import Correction, Image, Label, Prediction
 
 
 def _safe_class_dir(name: str) -> str:
@@ -47,9 +47,21 @@ def export_yolo_classify_from_db(
     unsharp: bool = False,
     update_derived_paths: bool = True,
     imgsz: int | None = None,
+    selection: str = "all_manual",
+    merge_base_manual: bool = False,
 ) -> tuple[Path, ExportStats, dict[str, Any]]:
     """
-    仅导出带有 **人工标注**（Label.source == manual）的图片。
+    导出带 **人工标注**（Label.source == manual）的图片为 YOLO classify 目录。
+
+    ``selection``:
+    - ``all_manual``: 所有带 manual 标注的图（默认全量训练）
+    - ``corrections_flagged``: 仅 ``corrections.include_in_next_train == True`` 对应图片
+      （纠错页勾选「纳入再训练」）
+    - ``corrections_only``: 同上（别名）
+
+    ``merge_base_manual``: 为 True 时，在增量训练中将 **全量 manual** 与 **勾选纠错样本** 合并导出
+    （适用于 ``corrections_*`` 选择策略）。
+
     返回：(数据集根目录 out_root, 统计, meta dict 写入 TrainJob)
     """
     out_root = out_root.resolve()
@@ -62,6 +74,12 @@ def export_yolo_classify_from_db(
     storage_root = Path(settings.storage_root).resolve()
     out_sz = int(imgsz) if imgsz and imgsz > 0 else int(settings.infer_imgsz)
 
+    sel = (selection or "all_manual").strip().lower()
+    if sel in ("corrections_only",):
+        sel = "corrections_flagged"
+    if sel not in ("all_manual", "corrections_flagged"):
+        raise ValueError(f"不支持的导出选择策略: {selection}")
+
     # 每张图仅取一条 manual 标注（有多条时取 id 最大者）
     images = db.scalars(
         select(Image)
@@ -69,19 +87,67 @@ def export_yolo_classify_from_db(
         .where(Label.source == "manual")
         .distinct()
     ).all()
-    image_to_label: dict[int, str] = {}
-    for im in images:
-        lbl = db.scalar(
-            select(Label)
-            .where(Label.image_id == im.id, Label.source == "manual")
-            .order_by(Label.id.desc())
+    def _latest_flagged_correct_class(image_id: int) -> str | None:
+        return db.scalar(
+            select(Correction.correct_class)
+            .join(Prediction, Prediction.id == Correction.prediction_id)
+            .where(
+                Prediction.image_id == image_id,
+                Correction.include_in_next_train.is_(True),
+            )
+            .order_by(Correction.id.desc())
             .limit(1)
         )
-        if lbl:
-            image_to_label[im.id] = lbl.class_name
+
+    image_to_label: dict[int, str] = {}
+
+    if sel == "corrections_flagged":
+        correction_image_ids = set(
+            db.scalars(
+                select(Prediction.image_id)
+                .join(Correction, Correction.prediction_id == Prediction.id)
+                .where(Correction.include_in_next_train.is_(True))
+            ).all()
+        )
+        if merge_base_manual:
+            for im in images:
+                lbl = db.scalar(
+                    select(Label)
+                    .where(Label.image_id == im.id, Label.source == "manual")
+                    .order_by(Label.id.desc())
+                    .limit(1)
+                )
+                if lbl:
+                    image_to_label[im.id] = lbl.class_name
+            for iid in correction_image_ids:
+                cc = _latest_flagged_correct_class(iid)
+                if cc:
+                    image_to_label[iid] = cc
+        else:
+            for iid in correction_image_ids:
+                cc = _latest_flagged_correct_class(iid)
+                if cc:
+                    image_to_label[iid] = cc
+    else:
+        for im in images:
+            lbl = db.scalar(
+                select(Label)
+                .where(Label.image_id == im.id, Label.source == "manual")
+                .order_by(Label.id.desc())
+                .limit(1)
+            )
+            if lbl:
+                image_to_label[im.id] = lbl.class_name
 
     if not image_to_label:
+        if sel == "corrections_flagged":
+            raise ValueError("没有勾选「纳入再训练」的纠错样本，无法导出增量数据集")
         raise ValueError("没有带人工标注（manual）的图片，无法导出训练集")
+
+    ordered_ids = sorted(image_to_label.keys())
+    images = db.scalars(select(Image).where(Image.id.in_(ordered_ids))).all()
+    id_order = {i: n for n, i in enumerate(ordered_ids)}
+    images.sort(key=lambda r: id_order.get(r.id, 10**9))
 
     by_class: dict[str, list[Image]] = {}
     for im in images:
@@ -183,6 +249,8 @@ def export_yolo_classify_from_db(
         "letterbox": letterbox,
         "clahe": clahe,
         "unsharp": unsharp,
+        "selection": sel,
+        "merge_base_manual": bool(merge_base_manual),
         "stats": {
             "total_exported": stats.total_exported,
             "n_train": stats.n_train,

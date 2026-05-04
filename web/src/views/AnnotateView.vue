@@ -20,6 +20,7 @@ const selectedId = ref<number | null>(null)
 const detail = ref<ImageDetail | null>(null)
 const loading = ref(false)
 const saving = ref(false)
+const regenerating = ref(false)
 
 const selectedKind = ref<string>('full_face_selfie')
 const labelValue = ref<string>('')
@@ -88,6 +89,21 @@ async function openImage(id: number) {
   }
 }
 
+async function regenerateDerived() {
+  if (!detail.value) return
+  regenerating.value = true
+  try {
+    await http.patch(`/v1/images/${detail.value.id}`, { regenerate_derived: true })
+    ElMessage.success('已根据当前 image_kind 重算规范舌图')
+    await refreshList()
+    await openImage(detail.value.id)
+  } catch {
+    ElMessage.error('重算失败（全脸需 TongueSAM 环境）')
+  } finally {
+    regenerating.value = false
+  }
+}
+
 async function saveCurrent() {
   if (!detail.value) return
   saving.value = true
@@ -148,6 +164,9 @@ onMounted(() => {
             </el-form-item>
             <el-button type="primary" :loading="saving" :disabled="!detail" @click="saveCurrent">
               保存
+            </el-button>
+            <el-button :loading="regenerating" :disabled="!detail" @click="regenerateDerived">
+              重算规范舌图
             </el-button>
             <el-button @click="refreshList" :loading="loading">刷新列表</el-button>
           </el-form>

@@ -1,14 +1,14 @@
 """数据访问封装（P1-3），便于单测 mock。"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.config import Settings
-from db.models import Image, Label
+from db.models import AsyncJob, AsyncJobStatus, Image, Label
 
 
 class ImageRepository:
@@ -44,3 +44,24 @@ class ImageRepository:
             )
         )
         self._db.commit()
+
+
+class JobRepository:
+    """AsyncJob / 批任务等（薄封装，便于测试 mock）。"""
+
+    def __init__(self, db: Session):
+        self._db = db
+
+    def get(self, job_id: str) -> AsyncJob | None:
+        return self._db.get(AsyncJob, job_id)
+
+    def add_infer_batch_pending(self, image_ids: list[int], topk: int) -> AsyncJob:
+        job = AsyncJob(
+            job_type="infer_batch",
+            status=AsyncJobStatus.pending.value,
+            payload_json=json.dumps({"image_ids": image_ids, "topk": topk}, ensure_ascii=False),
+        )
+        self._db.add(job)
+        self._db.commit()
+        self._db.refresh(job)
+        return job
