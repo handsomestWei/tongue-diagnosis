@@ -2,6 +2,7 @@
 
 from db.base import Base
 from db.models import (
+    AsyncJob,
     Correction,
     Image,
     Label,
@@ -20,6 +21,7 @@ __all__ = [
     "Label",
     "ModelRegistry",
     "TrainJob",
+    "AsyncJob",
     "Prediction",
     "Correction",
 ]

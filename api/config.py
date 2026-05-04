@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     dev_annotator_password: str = "anno123"
     dev_viewer_password: str = "view123"
 
+    # P2 推理：YOLO classify 权重（留空则 /infer 仅返回演示 top-k）
+    classify_weights_path: str = ""
+    tonguesam_root: str = "./tongue_sam"
+    infer_device: str = "cpu"
+    infer_imgsz: int = 224
+    infer_sam_timeout_sec: int = 600
+
 
 @lru_cache
 def get_settings() -> Settings:

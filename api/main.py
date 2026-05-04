@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
 from api.routers import auth as auth_router
+from api.routers import batch_infer as batch_infer_router
 from api.routers import images as images_router
 from api.routers import training as training_router
 from api.routers import infer as infer_router
@@ -24,8 +25,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Tongue Diagnosis API",
-    version="0.2.0",
-    description="舌象平台 API：鉴权、图片/标注、训练与模型占位。",
+    version="0.3.1",
+    description="舌象平台 API：鉴权、图片/标注、训练占位、推理（YOLO + 可选 TongueSAM）。",
     lifespan=lifespan,
 )
 
@@ -42,6 +43,8 @@ app.include_router(images_router.router)
 app.include_router(training_router.router_train)
 app.include_router(training_router.router_models)
 app.include_router(infer_router.router)
+app.include_router(batch_infer_router.router_infer_batch)
+app.include_router(batch_infer_router.router_jobs)
 
 
 @app.get("/health")

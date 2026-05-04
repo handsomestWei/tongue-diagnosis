@@ -39,4 +39,4 @@ td-collect-labelme = "tongue_diag.dataset.collect_labelme_flat:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["tongue_diag*"]
+include = ["tongue_diag*", "core*", "api*", "db*"]
